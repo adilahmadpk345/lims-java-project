@@ -8,40 +8,56 @@
     <version>3.2.1</version>
     <relativePath/> <!-- lookup parent from repository -->
   </parent>
+
   <groupId>com.example</groupId>
-  <artifactId>demo</artifactId>
+  <artifactId>lims-parent</artifactId>
   <version>0.0.1-SNAPSHOT</version>
-  <name>demo</name>
-  <description>Demo project for Spring Boot</description>
+  <packaging>pom</packaging>
+  <name>LIMS Parent</name>
+  <description>Parent project for the Laboratory Information Management System</description>
+
   <properties>
     <java.version>17</java.version>
+    <javafx.version>21</javafx.version>
   </properties>
-  <dependencies>
-    <dependency>
-      <groupId>org.springframework.boot</groupId>
-      <artifactId>spring-boot-starter-web</artifactId>
-    </dependency>
 
-    <dependency>
-      <groupId>org.springframework.boot</groupId>
-      <artifactId>spring-boot-devtools</artifactId>
-      <scope>runtime</scope>
-      <optional>true</optional>
-    </dependency>
-    <dependency>
-      <groupId>org.springframework.boot</groupId>
-      <artifactId>spring-boot-starter-test</artifactId>
-      <scope>test</scope>
-    </dependency>
-  </dependencies>
+  <modules>
+    <module>lims-core</module>
+    <module>lims-desktop</module>
+    <module>lims-web</module>
+  </modules>
 
-  <build>
-    <plugins>
-      <plugin>
-        <groupId>org.springframework.boot</groupId>
-        <artifactId>spring-boot-maven-plugin</artifactId>
-      </plugin>
-    </plugins>
-  </build>
+  <dependencyManagement>
+    <dependencies>
+      <!-- LIMS Modules -->
+      <dependency>
+        <groupId>com.example</groupId>
+        <artifactId>lims-core</artifactId>
+        <version>${project.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>com.example</groupId>
+        <artifactId>lims-desktop</artifactId>
+        <version>${project.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>com.example</groupId>
+        <artifactId>lims-web</artifactId>
+        <version>${project.version}</version>
+      </dependency>
+
+      <!-- JavaFX -->
+      <dependency>
+        <groupId>org.openjfx</groupId>
+        <artifactId>javafx-controls</artifactId>
+        <version>${javafx.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>org.openjfx</groupId>
+        <artifactId>javafx-fxml</artifactId>
+        <version>${javafx.version}</version>
+      </dependency>
+    </dependencies>
+  </dependencyManagement>
 
 </project>
