@@ -41,4 +41,15 @@ public class DemoApplication {
             return "Error generating content: " + e.getMessage();
         }
     }
+
+    @GetMapping("/chat")
+    public String chat(@RequestParam String sessionId, @RequestParam String prompt) {
+        try {
+            return geminiService.sendMessage(sessionId, prompt);
+        } catch (ExecutionException | InterruptedException e) {
+            // Restore the interrupted status
+            Thread.currentThread().interrupt();
+            return "Error during chat: " + e.getMessage();
+        }
+    }
 }

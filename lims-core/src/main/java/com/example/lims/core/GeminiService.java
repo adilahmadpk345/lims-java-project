@@ -1,25 +1,29 @@
 package com.example.lims.core;
 
-import com.google.ai.client.generativeai.GenerativeModel;
-import com.google.ai.client.generativeai.java.GenerativeModelFutures;
-import com.google.ai.client.generativeai.type.Content;
-import com.google.ai.client.generativeai.type.GenerateContentResponse;
-import com.google.common.util.concurrent.ListenableFuture;
+import com.google.cloud.vertexai.VertexAI;
+import com.google.cloud.vertexai.generativeai.GenerativeModel;
+import org.springframework.stereotype.Service;
 
 import java.io.IOException;
-import java.util.concurrent.ExecutionException;
+import java.util.List;
 
+@Service
 public class GeminiService {
 
-    private final GenerativeModelFutures model;
+    private final GenerativeModel generativeModel;
 
-    public GeminiService(String apiKey, String modelName) {
-        model = new GenerativeModelFutures(modelName, apiKey);
+    public GeminiService() throws IOException {
+        String projectId = "your-google-cloud-project-id";
+        String location = "us-central1";
+        String modelName = "gemini-1.5-pro-preview-0409";
+
+        try (VertexAI vertexAI = new VertexAI(projectId, location)) {
+            this.generativeModel = new GenerativeModel(modelName, vertexAI);
+        }
     }
 
-    public String generateContent(String prompt) throws ExecutionException, InterruptedException {
-        Content content = new Content.Builder().addText(prompt).build();
-        ListenableFuture<GenerateContentResponse> response = model.generateContent(content);
-        return GenerativeModel.extractText(response.get());
+    public String chat(List<String> messages) {
+        // This is a placeholder for the actual chat logic
+        return "This is a response from Gemini.";
     }
 }
