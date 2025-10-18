@@ -123,7 +123,9 @@
         <div style="display:flex; gap:12px">
           <div style="flex:1">
             <h4>Create sample</h4>
+            <div id="createErrors" role="alert" aria-live="polite" style="color:#b91c1c; margin-bottom:8px; display:none"></div>
             <label>Name <input id="sampleName" type="text" /></label>
+            <div id="createErrorName" style="color:#b91c1c; font-size:13px; display:none" aria-hidden="true"></div>
             <label>Type
               <select id="sampleType">
                 <option value="Hormones">Hormones</option>
@@ -133,6 +135,7 @@
                 <option value="Serology">Serology</option>
               </select>
             </label>
+              <div id="createErrorType" style="color:#b91c1c; font-size:13px; display:none" aria-hidden="true"></div>
             <label>Status
               <select id="sampleStatus">
                 <option value="New">New</option>
@@ -141,6 +144,7 @@
                 <option value="Cancelled">Cancelled</option>
               </select>
             </label>
+              <div id="createErrorStatus" style="color:#b91c1c; font-size:13px; display:none" aria-hidden="true"></div>
             <button id="createSample">Create</button>
           </div>
           <div style="flex:2">
@@ -153,7 +157,9 @@
       <div id="editModal" role="dialog" aria-modal="true" aria-hidden="true" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.35); align-items:center; justify-content:center; z-index:60">
         <div role="document" style="background:#fff; padding:16px; border-radius:8px; width:90%; max-width:480px">
           <h3 id="modalTitle">Edit sample</h3>
+          <div id="modalErrors" role="alert" aria-live="polite" style="color:#b91c1c; margin-bottom:8px; display:none"></div>
           <label for="modalName">Name <input id="modalName" type="text" /></label>
+          <div id="modalErrorName" style="color:#b91c1c; font-size:13px; display:none" aria-hidden="true"></div>
           <label for="modalType">Type
             <select id="modalType">
               <option value="Hormones">Hormones</option>
@@ -163,6 +169,7 @@
               <option value="Serology">Serology</option>
             </select>
           </label>
+          <div id="modalErrorType" style="color:#b91c1c; font-size:13px; display:none" aria-hidden="true"></div>
           <label for="modalStatus">Status
             <select id="modalStatus">
               <option value="New">New</option>
@@ -171,6 +178,7 @@
               <option value="Cancelled">Cancelled</option>
             </select>
           </label>
+          <div id="modalErrorStatus" style="color:#b91c1c; font-size:13px; display:none" aria-hidden="true"></div>
           <div style="display:flex; gap:8px; justify-content:flex-end; margin-top:12px">
             <button id="modalCancel" style="background:#e5e7eb;color:#000">Cancel</button>
             <button id="modalSave">Save</button>
@@ -328,11 +336,21 @@
 
     async function createSample() {
       const body = { name: sampleName.value, type: sampleType.value, status: sampleStatus.value };
+      // clear previous errors
+        const createErrEl = document.getElementById('createErrors'); createErrEl.style.display = 'none'; createErrEl.textContent = ''; clearFieldErrors(['sampleName','sampleType','sampleStatus']);
       try {
-        await fetch('/api/samples', { method: 'POST', headers: { 'Content-Type':'application/json', 'Authorization': basicAuthHeader() }, body: JSON.stringify(body) });
-        sampleName.value = sampleType.value = sampleStatus.value = '';
+        const res = await fetch('/api/samples', { method: 'POST', headers: { 'Content-Type':'application/json', 'Authorization': basicAuthHeader() }, body: JSON.stringify(body) });
+        if (!res.ok) {
+            const err = await res.json().catch(()=>null);
+            if (err && err.details) { setFieldErrorsFromDetails(err.details, 'create'); }
+            const msg = err && err.message ? err.message : res.statusText || 'Create failed';
+            createErrEl.textContent = msg; createErrEl.style.display = ''; return;
+        }
+        // success: clear form and errors
+        sampleName.value = '';
+        createErrEl.style.display = 'none'; createErrEl.textContent = '';
         await loadSamples();
-      } catch (e) { alert('Create failed: ' + e) }
+      } catch (e) { createErrEl.textContent = 'Create failed: ' + e; createErrEl.style.display = ''; }
     }
 
     // Modal-based edit
@@ -391,18 +409,31 @@
       const name = modalName.value.trim();
       const type = modalType.value.trim();
       const status = modalStatus.value.trim();
-      if (!name) return alert('Name is required');
+      const modalErrEl = document.getElementById('modalErrors'); modalErrEl.style.display = 'none'; modalErrEl.textContent = '';
+      clearFieldErrors(['modalName','modalType','modalStatus']);
+      if (!name) { modalErrEl.textContent = 'Name is required'; modalErrEl.style.display = ''; return; }
       try {
-        await fetch(`/api/samples/${editingId}`, { method: 'PUT', headers: { 'Content-Type':'application/json', 'Authorization': basicAuthHeader() }, body: JSON.stringify({ id: editingId, name, type, status }) });
+        const res = await fetch(`/api/samples/${editingId}`, { method: 'PUT', headers: { 'Content-Type':'application/json', 'Authorization': basicAuthHeader() }, body: JSON.stringify({ id: editingId, name, type, status }) });
+        if (!res.ok) {
+          const err = await res.json().catch(()=>null);
+          if (err && err.details) { setFieldErrorsFromDetails(err.details, 'modal'); }
+          const msg = err && err.message ? err.message : res.statusText || 'Update failed';
+          modalErrEl.textContent = msg; modalErrEl.style.display = ''; return;
+        }
         closeEditModal();
         await loadSamples();
-      } catch (e) { alert('Update failed: ' + e) }
+      } catch (e) { modalErrEl.textContent = 'Update failed: ' + e; modalErrEl.style.display = ''; }
     });
 
     async function deleteSample(id) {
       if (!confirm('Delete sample ' + id + '?')) return;
       try {
-        await fetch(`/api/samples/${id}`, { method: 'DELETE', headers: { 'Authorization': basicAuthHeader() } });
+        const res = await fetch(`/api/samples/${id}`, { method: 'DELETE', headers: { 'Authorization': basicAuthHeader() } });
+        if (!res.ok) {
+          const err = await res.json().catch(()=>null);
+          const msg = err && err.details ? err.details.join('; ') : (err && err.message) || res.statusText || 'Delete failed';
+          alert(msg); return;
+        }
         await loadSamples();
       } catch (e) { alert('Delete failed: ' + e) }
     }
@@ -418,6 +449,38 @@
 
     // basic HTML escape for safety when inserting text
     function escapeHtml(s){ return String(s||'').replace(/[&<>"']/g, (c)=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+    // Accessibility helpers: set and clear field-level errors
+    function setFieldErrorsFromDetails(details, prefix) {
+      // details expected in format "field: message" or generic messages
+      details.forEach(d => {
+        const parts = d.split(':');
+        if (parts.length >= 2) {
+          const field = parts[0].trim();
+          const msg = parts.slice(1).join(':').trim();
+          const inputId = (prefix === 'modal' ? 'modal' : prefix === 'create' ? '': '') + (field === 'name' ? (prefix==='modal' ? 'modalName' : 'sampleName') : (field === 'type' ? (prefix==='modal' ? 'modalType' : 'sampleType') : (field === 'status' ? (prefix==='modal' ? 'modalStatus' : 'sampleStatus') : field)));
+          const errElId = (prefix === 'modal' ? 'modalError' : 'createError') + (field.charAt(0).toUpperCase() + field.slice(1));
+          const errEl = document.getElementById(errElId);
+          const inputEl = document.getElementById(inputId);
+          if (errEl) { errEl.textContent = msg; errEl.style.display = ''; errEl.setAttribute('aria-hidden','false'); }
+          if (inputEl) { inputEl.setAttribute('aria-invalid','true'); inputEl.setAttribute('aria-describedby', errElId); }
+        }
+      });
+    }
+
+    function clearFieldErrors(ids) {
+      ids.forEach(id => {
+        const el = document.getElementById(id);
+        if (!el) return;
+        // clear aria-invalid and describedby
+        el.removeAttribute('aria-invalid');
+        el.removeAttribute('aria-describedby');
+        // hide corresponding error span if present
+        const errId = (id.startsWith('modal') ? 'modalError' : 'createError') + id.replace(/^[a-z]+/i, function(m){ return m.charAt(0).toUpperCase()+m.slice(1); }).replace(/Name|Type|Status/,'$&');
+        const errEl = document.getElementById(errId);
+        if (errEl) { errEl.textContent = ''; errEl.style.display = 'none'; errEl.setAttribute('aria-hidden','true'); }
+      });
+    }
 
     function loadOverview(){
       fetch('/api/samples', { headers: { 'Authorization': basicAuthHeader() } }).then(r=>r.json()).then(arr=>{

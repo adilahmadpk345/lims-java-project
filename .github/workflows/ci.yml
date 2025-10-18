@@ -31,3 +31,38 @@ jobs:
 
       - name: Build and run tests (lims-web)
         run: mvn -Dspring.cloud.gcp.sql.enabled=false -pl lims-web -am test
+
+  docker:
+    needs: build
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v2
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+
+      - name: Log in to GitHub Container Registry
+        if: ${{ secrets.GHCR_TOKEN != '' }}
+        uses: docker/login-action@v2
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GHCR_TOKEN }}
+
+      - name: Build lims-web Docker image
+        run: |
+          docker build --file lims-web/Dockerfile --tag ghcr.io/${{ github.repository }}/lims-web:${{ github.sha }} lims-web
+
+      - name: Push Docker image to GHCR
+        if: ${{ secrets.GHCR_TOKEN != '' }}
+        run: |
+          docker push ghcr.io/${{ github.repository }}/lims-web:${{ github.sha }}

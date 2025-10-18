@@ -45,8 +45,5 @@ public class SampleController {
         sampleService.deleteSample(id);
     }
 
-    @ExceptionHandler({IllegalArgumentException.class})
-    public ResponseEntity<String> handleBadRequest(IllegalArgumentException ex) {
-        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(ex.getMessage());
-    }
+    // Let GlobalExceptionHandler handle exceptions and return structured JSON errors
 }
