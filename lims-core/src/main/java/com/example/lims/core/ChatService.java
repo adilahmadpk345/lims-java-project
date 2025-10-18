@@ -19,4 +19,15 @@ public class ChatService {
         // Implement chat logic here, potentially using dataQueryService for context
         return geminiService.chat(messages);
     }
+
+    // Compatibility methods used by web layer
+    public String startChat() {
+        // simple placeholder
+        return java.util.UUID.randomUUID().toString();
+    }
+
+    public String sendMessage(String sessionId, String message) {
+        // Delegate to geminiService placeholder
+        return geminiService.sendMessage(sessionId, message);
+    }
 }
