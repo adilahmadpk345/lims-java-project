@@ -22,6 +22,26 @@ public class GeminiService {
         }
     }
 
+    /**
+     * Compatibility constructor used by the web module in this example.
+     * This constructor provides a lightweight placeholder implementation
+     * and does not attempt to call external APIs.
+     */
+    public GeminiService(String apiKey, String modelName) {
+        // In a production setup, use apiKey and modelName to initialise the client.
+        this.generativeModel = null; // placeholder to satisfy constructor injection
+    }
+
+    public String generateContent(String prompt) {
+        // Placeholder implementation for local builds
+        return "[gemini generated] " + prompt;
+    }
+
+    public String sendMessage(String sessionId, String prompt) {
+        // Placeholder chat behavior
+        return "[gemini reply to " + sessionId + "] " + prompt;
+    }
+
     public String chat(List<String> messages) {
         // This is a placeholder for the actual chat logic
         return "This is a response from Gemini.";

@@ -1,0 +1,430 @@
+
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>LIMS Demo UI</title>
+  <style>
+    :root { --accent:#2b6cb0; --muted:#666; --bg:#0f172a }
+    * { box-sizing: border-box }
+    body { font-family: Inter, system-ui, -apple-system, Arial, sans-serif; margin: 0; background:#f3f4f6 }
+    header { background: linear-gradient(90deg,#0f172a,#0b1220); color: #fff; padding: 12px 16px }
+    .app-header { display:flex; align-items:center; justify-content:space-between; gap:12px }
+    .brand { display:flex; align-items:center; gap:12px }
+    .brand .title { font-weight:700; font-size:16px; color:#fff }
+    main { display:flex; gap:0; padding: 0 }
+    aside#sidebar { width:220px; background:var(--bg); color:#fff; padding:14px; min-height:calc(100vh - 72px); transition: transform .2s ease-in-out }
+    aside#sidebar.collapsed { transform: translateX(-260px) }
+    .panel { flex:1; min-height:400px; background:#fff; border-radius:8px; box-shadow:0 6px 18px rgba(11,18,32,0.06); padding:16px; margin:24px }
+    label { display:block; margin-top:8px }
+    input[type=text], input[type=password] { width: 100%; padding:8px; box-sizing:border-box }
+    button { margin-top:8px; padding:8px 12px; background:var(--accent); color:#fff; border:none; border-radius:6px; cursor:pointer }
+    .chat-window { border:1px solid #eee; padding:10px; height:320px; overflow:auto; background:#fafafa }
+    .msg { margin:8px 0; }
+    .msg .who { font-weight:600 }
+    .meta { color:var(--muted); font-size:12px }
+    footer { padding:10px 24px; color:var(--muted) }
+
+    /* Top nav links */
+    .top-nav a { color:#fff; text-decoration:none; margin-right:12px }
+
+    /* Sidebar links */
+    .side-link { color:#9cc9ff; text-decoration:none; display:block; padding:8px 6px; border-radius:4px }
+    .side-link:hover { background: rgba(255,255,255,0.04) }
+
+    /* Responsive: collapse sidebar on small screens */
+    @media (max-width: 880px) {
+      aside#sidebar { position:fixed; top:56px; left:0; height:calc(100vh - 56px); z-index:40 }
+      .panel { margin:16px; }
+      main { padding-top:0 }
+    }
+    @media (max-width: 560px) {
+      .brand .title { font-size:14px }
+      .top-nav { display:none }
+      .panel { margin:12px }
+    }
+    .hamburger { background:transparent; border:none; color:#fff; font-size:20px; cursor:pointer; padding:8px }
+    .skip-link { position: absolute; left: -999px; top: auto; width: 1px; height: 1px; overflow: hidden }
+    .skip-link:focus { left: 8px; top: 8px; width: auto; height: auto; background: #fff; color: #000; padding:8px 12px; border-radius:4px; z-index:100 }
+  </style>
+</head>
+<body>
+  <header>
+    <a class="skip-link" href="#content">Skip to content</a>
+    <div class="app-header">
+      <div class="brand">
+        <button class="hamburger" id="sidebarToggle" aria-label="Toggle navigation">☰</button>
+          <div class="title">LIMS Dashboard</div>
+        <nav class="top-nav" role="navigation" aria-label="Top menu">
+          <a href="#" id="topOverview">Overview</a>
+          <a href="#" id="topData">Data</a>
+          <a href="#" id="topAI">AI</a>
+        </nav>
+      </div>
+      <div style="padding-right:8px; color:#fff">
+        <span style="margin-right:8px">Signed in as <strong>admin</strong></span>
+      </div>
+    </div>
+  </header>
+
+  <main>
+  <aside id="sidebar" role="navigation" aria-label="Sidebar menu">
+      <div style="font-size:13px; margin-bottom:10px; color:#94a3b8">Navigation</div>
+      <ul style="list-style:none; padding:0; margin:0">
+        <li><a href="#" class="side-link sideLink" data-view="chat" tabindex="0">Chat</a></li>
+        <li><a href="#" class="side-link sideLink" data-view="story" tabindex="0">Story</a></li>
+        <li><a href="#" class="side-link sideLink" data-view="samples" tabindex="0">Samples</a></li>
+      </ul>
+      <hr style="border-color:#111827; margin:12px 0" />
+      <div style="color:#cbd5e1; font-size:13px">Account</div>
+      <div style="margin-top:8px">
+        <label style="display:block; color:#cbd5e1">Username <input id="username" type="text" value="admin" style="width:100%; padding:6px; box-sizing:border-box"/></label>
+        <label style="display:block; margin-top:6px; color:#cbd5e1">Password <input id="password" type="password" value="password" style="width:100%; padding:6px; box-sizing:border-box"/></label>
+      </div>
+    </aside>
+
+    <section class="panel" id="content">
+      <!-- Overview view -->
+      <div id="overviewView" style="display:none">
+        <h2>Overview</h2>
+        <div style="display:flex; gap:16px; flex-wrap:wrap">
+          <div style="background:#fff; padding:12px; border-radius:8px; box-shadow:0 4px 12px rgba(0,0,0,0.04); min-width:160px">
+            <div style="font-size:12px; color:var(--muted)">Samples</div>
+            <div id="overviewSamples" style="font-size:20px; font-weight:700">—</div>
+          </div>
+          <div style="background:#fff; padding:12px; border-radius:8px; box-shadow:0 4px 12px rgba(0,0,0,0.04); min-width:160px">
+            <div style="font-size:12px; color:var(--muted)">Recent activity</div>
+            <div id="overviewActivity" style="font-size:14px;">No recent events</div>
+          </div>
+        </div>
+      </div>
+      <!-- Chat view by default -->
+        <div id="chatView">
+          <h2>Chat</h2>
+          <div class="chat-window" id="chatWindow"></div>
+          <div style="display:flex; gap:8px; margin-top:8px">
+            <input id="chatPrompt" type="text" placeholder="Say something..." />
+            <button id="sendChat">Send</button>
+            <button id="clearChat" style="background:#ccc;color:#000">Clear</button>
+          </div>
+        </div>
+
+      <div id="storyView" style="display:none">
+        <h2>Story</h2>
+        <label>Prompt <input id="storyPrompt" type="text" value="Tell me a short story about a lab."/></label>
+        <button id="genStory">Generate</button>
+        <h4>Result</h4>
+        <pre id="storyResp"></pre>
+      </div>
+
+    <div id="samplesView" style="display:none">
+        <h2>Samples</h2>
+        <div style="display:flex; gap:12px">
+          <div style="flex:1">
+            <h4>Create sample</h4>
+            <label>Name <input id="sampleName" type="text" /></label>
+            <label>Type
+              <select id="sampleType">
+                <option value="Hormones">Hormones</option>
+                <option value="Hematology">Hematology</option>
+                <option value="Microbiology">Microbiology</option>
+                <option value="Chemistry">Chemistry</option>
+                <option value="Serology">Serology</option>
+              </select>
+            </label>
+            <label>Status
+              <select id="sampleStatus">
+                <option value="New">New</option>
+                <option value="In Progress">In Progress</option>
+                <option value="Completed">Completed</option>
+                <option value="Cancelled">Cancelled</option>
+              </select>
+            </label>
+            <button id="createSample">Create</button>
+          </div>
+          <div style="flex:2">
+            <h4>All samples</h4>
+            <div id="samplesList"></div>
+          </div>
+        </div>
+      </div>
+      <!-- Edit modal -->
+      <div id="editModal" role="dialog" aria-modal="true" aria-hidden="true" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.35); align-items:center; justify-content:center; z-index:60">
+        <div role="document" style="background:#fff; padding:16px; border-radius:8px; width:90%; max-width:480px">
+          <h3 id="modalTitle">Edit sample</h3>
+          <label for="modalName">Name <input id="modalName" type="text" /></label>
+          <label for="modalType">Type
+            <select id="modalType">
+              <option value="Hormones">Hormones</option>
+              <option value="Hematology">Hematology</option>
+              <option value="Microbiology">Microbiology</option>
+              <option value="Chemistry">Chemistry</option>
+              <option value="Serology">Serology</option>
+            </select>
+          </label>
+          <label for="modalStatus">Status
+            <select id="modalStatus">
+              <option value="New">New</option>
+              <option value="In Progress">In Progress</option>
+              <option value="Completed">Completed</option>
+              <option value="Cancelled">Cancelled</option>
+            </select>
+          </label>
+          <div style="display:flex; gap:8px; justify-content:flex-end; margin-top:12px">
+            <button id="modalCancel" style="background:#e5e7eb;color:#000">Cancel</button>
+            <button id="modalSave">Save</button>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+    <footer>
+    Tip: this demo uses HTTP Basic (admin/password). For real apps use OAuth or session auth.
+  </footer>
+
+  <script>
+    // Navigation
+    const sideLinks = document.querySelectorAll('.sideLink');
+    const chatView = document.getElementById('chatView');
+    const storyView = document.getElementById('storyView');
+    const samplesView = document.getElementById('samplesView');
+    const sidebar = document.getElementById('sidebar');
+    const sidebarToggle = document.getElementById('sidebarToggle');
+
+    function show(view) {
+      chatView.style.display = view === 'chat' ? '' : 'none';
+      storyView.style.display = view === 'story' ? '' : 'none';
+      samplesView.style.display = view === 'samples' ? '' : 'none';
+      // when showing samples, refresh list
+      if (view === 'samples') setTimeout(loadSamples, 100);
+      // on small screens, hide the sidebar after navigation
+      if (window.innerWidth <= 880) sidebar.classList.add('collapsed');
+      // mark active link for screen readers
+      document.querySelectorAll('.sideLink').forEach(el => el.removeAttribute('aria-current'));
+      const active = Array.from(document.querySelectorAll('.sideLink')).find(el => el.getAttribute('data-view')===view);
+      if (active) active.setAttribute('aria-current','true');
+    }
+
+    sideLinks.forEach(el => {
+      el.addEventListener('click', e => {
+        e.preventDefault();
+        const view = el.getAttribute('data-view');
+        show(view);
+      });
+      el.addEventListener('keydown', e => {
+        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); el.click(); }
+      });
+    });
+
+    sidebarToggle.addEventListener('click', () => {
+      sidebar.classList.toggle('collapsed');
+    });
+
+    // Basic auth header helper
+    function basicAuthHeader() {
+      const u = document.getElementById('username').value || '';
+      const p = document.getElementById('password').value || '';
+      return 'Basic ' + btoa(u + ':' + p);
+    }
+
+    // Chat history (in-memory)
+    const chatWindow = document.getElementById('chatWindow');
+    const chatPrompt = document.getElementById('chatPrompt');
+    const sendChat = document.getElementById('sendChat');
+    const clearChat = document.getElementById('clearChat');
+
+    function appendMessage(who, text) {
+      const el = document.createElement('div');
+      el.className = 'msg';
+      el.innerHTML = `<div class="who">${who}</div><div>${text}</div><div class="meta">${new Date().toLocaleTimeString()}</div>`;
+      chatWindow.appendChild(el);
+      chatWindow.scrollTop = chatWindow.scrollHeight;
+    }
+
+    async function sendMessage() {
+      const text = chatPrompt.value.trim();
+      if (!text) return;
+      appendMessage('You', text);
+      chatPrompt.value = '';
+      // call /chat
+      try {
+        const sessionId = 'web-session';
+        const url = `/chat?sessionId=${encodeURIComponent(sessionId)}&prompt=${encodeURIComponent(text)}`;
+        const res = await fetch(url, { headers: { 'Authorization': basicAuthHeader() } });
+        const body = await res.text();
+        appendMessage('Bot', body);
+      } catch (e) {
+        appendMessage('Error', ''+e);
+      }
+    }
+
+    sendChat.addEventListener('click', sendMessage);
+    chatPrompt.addEventListener('keydown', (e) => { if (e.key === 'Enter') sendMessage() });
+    clearChat.addEventListener('click', () => { chatWindow.innerHTML = '' });
+
+    // Story
+    document.getElementById('genStory').addEventListener('click', async () => {
+      const p = document.getElementById('storyPrompt').value || '';
+      const url = `/story?prompt=${encodeURIComponent(p)}`;
+      document.getElementById('storyResp').textContent = 'Waiting...';
+      try {
+        const r = await fetch(url, { headers: { 'Authorization': basicAuthHeader() } });
+        const txt = await r.text();
+        document.getElementById('storyResp').textContent = txt;
+      } catch (e) {
+        document.getElementById('storyResp').textContent = 'Error: ' + e;
+      }
+    });
+
+  // Show chat by default
+  show('chat');
+
+  // Samples CRUD
+    const samplesList = document.getElementById('samplesList');
+    const sampleName = document.getElementById('sampleName');
+    const sampleType = document.getElementById('sampleType');
+    const sampleStatus = document.getElementById('sampleStatus');
+    const createSampleBtn = document.getElementById('createSample');
+
+    async function loadSamples() {
+      try {
+        const r = await fetch('/api/samples', { headers: { 'Authorization': basicAuthHeader() } });
+        const arr = await r.json();
+        samplesList.innerHTML = '';
+        arr.forEach(s => {
+          const row = document.createElement('div');
+          row.className = 'sample-row';
+          row.style.display = 'flex';
+          row.style.justifyContent = 'space-between';
+          row.style.alignItems = 'center';
+          row.style.borderBottom = '1px solid #eee';
+          row.style.padding = '10px 0';
+          const meta = document.createElement('div');
+          meta.innerHTML = `<div style="font-weight:600">${escapeHtml(s.name)}</div><div style="color:var(--muted)">(${escapeHtml(s.type)})</div>`;
+          const controls = document.createElement('div');
+          const edit = document.createElement('button');
+          edit.textContent = 'Edit';
+          edit.style.marginRight = '8px';
+          edit.onclick = () => openEditModal(s);
+          const del = document.createElement('button');
+          del.textContent = 'Delete';
+          del.style.background = '#d9534f';
+          del.onclick = () => deleteSample(s.id);
+          controls.appendChild(edit);
+          controls.appendChild(del);
+          row.appendChild(meta);
+          row.appendChild(controls);
+          samplesList.appendChild(row);
+        });
+        // update overview counts
+        const overviewSamples = document.getElementById('overviewSamples');
+        if (overviewSamples) overviewSamples.textContent = arr.length;
+      } catch (e) {
+        samplesList.textContent = 'Failed to load samples: ' + e;
+      }
+    }
+
+    async function createSample() {
+      const body = { name: sampleName.value, type: sampleType.value, status: sampleStatus.value };
+      try {
+        await fetch('/api/samples', { method: 'POST', headers: { 'Content-Type':'application/json', 'Authorization': basicAuthHeader() }, body: JSON.stringify(body) });
+        sampleName.value = sampleType.value = sampleStatus.value = '';
+        await loadSamples();
+      } catch (e) { alert('Create failed: ' + e) }
+    }
+
+    // Modal-based edit
+    const editModal = document.getElementById('editModal');
+    const modalName = document.getElementById('modalName');
+    const modalType = document.getElementById('modalType');
+    const modalStatus = document.getElementById('modalStatus');
+    const modalSave = document.getElementById('modalSave');
+    const modalCancel = document.getElementById('modalCancel');
+    let editingId = null;
+
+    function openEditModal(s) {
+      editingId = s.id;
+      // remember opener to return focus
+      editModal._returnFocus = document.activeElement;
+      document.getElementById('modalTitle').textContent = 'Edit sample ' + s.id;
+      modalName.value = s.name || '';
+      modalType.value = s.type || '';
+      modalStatus.value = s.status || '';
+  editModal.style.display = 'flex';
+  editModal.setAttribute('aria-hidden','false');
+      // trap focus
+      const focusable = Array.from(editModal.querySelectorAll('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])')).filter(el=>!el.hasAttribute('disabled'));
+      let idx = 0;
+      modalName.focus();
+      function keyHandler(e){
+        if (e.key === 'Tab'){
+          e.preventDefault();
+          idx = (idx + (e.shiftKey ? -1 : 1) + focusable.length) % focusable.length;
+          focusable[idx].focus();
+        } else if (e.key === 'Escape'){
+          closeEditModal();
+        } else if (e.key === 'Enter' && document.activeElement && document.activeElement.tagName !== 'TEXTAREA'){
+          // Enter saves when not in a textarea
+          e.preventDefault();
+          modalSave.click();
+        }
+      }
+      editModal._keyHandler = keyHandler;
+      document.addEventListener('keydown', keyHandler);
+    }
+
+    function closeEditModal() {
+      editingId = null;
+      editModal.style.display = 'none';
+      editModal.setAttribute('aria-hidden','true');
+      if (editModal._keyHandler) { document.removeEventListener('keydown', editModal._keyHandler); editModal._keyHandler = null; }
+      // return focus to opener
+      try { if (editModal._returnFocus && typeof editModal._returnFocus.focus === 'function') editModal._returnFocus.focus(); } catch(e){}
+    }
+
+    modalCancel.addEventListener('click', () => closeEditModal());
+    editModal.addEventListener('click', (e) => { if (e.target === editModal) closeEditModal(); });
+
+    modalSave.addEventListener('click', async () => {
+      const name = modalName.value.trim();
+      const type = modalType.value.trim();
+      const status = modalStatus.value.trim();
+      if (!name) return alert('Name is required');
+      try {
+        await fetch(`/api/samples/${editingId}`, { method: 'PUT', headers: { 'Content-Type':'application/json', 'Authorization': basicAuthHeader() }, body: JSON.stringify({ id: editingId, name, type, status }) });
+        closeEditModal();
+        await loadSamples();
+      } catch (e) { alert('Update failed: ' + e) }
+    });
+
+    async function deleteSample(id) {
+      if (!confirm('Delete sample ' + id + '?')) return;
+      try {
+        await fetch(`/api/samples/${id}`, { method: 'DELETE', headers: { 'Authorization': basicAuthHeader() } });
+        await loadSamples();
+      } catch (e) { alert('Delete failed: ' + e) }
+    }
+
+    createSampleBtn.addEventListener('click', createSample);
+    // Top Overview nav
+    const topOverview = document.getElementById('topOverview');
+    topOverview.addEventListener('click', (e) => { e.preventDefault(); show('overview'); loadOverview(); });
+    // load samples when showing view
+    // find navSamples button (sidebar)
+    const navSamples = Array.from(document.querySelectorAll('.sideLink')).find(el => el.getAttribute('data-view')==='samples');
+    if (navSamples) navSamples.addEventListener('click', (e)=>{ setTimeout(loadSamples,200) });
+
+    // basic HTML escape for safety when inserting text
+    function escapeHtml(s){ return String(s||'').replace(/[&<>"']/g, (c)=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+    function loadOverview(){
+      fetch('/api/samples', { headers: { 'Authorization': basicAuthHeader() } }).then(r=>r.json()).then(arr=>{
+        const el = document.getElementById('overviewSamples'); if (el) el.textContent = arr.length;
+        const acts = document.getElementById('overviewActivity'); if (acts) acts.textContent = arr.length? `Last sample: ${arr[arr.length-1].name}` : 'No recent events';
+      }).catch(()=>{});
+    }
+  </script>
+</body>
+</html>

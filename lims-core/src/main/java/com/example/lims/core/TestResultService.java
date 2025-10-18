@@ -24,4 +24,9 @@ public class TestResultService {
     public List<TestResult> getTestResultsForSample(Long sampleId) {
         return testResultRepository.findBySampleId(sampleId);
     }
+
+    // Compatibility method used by web controllers
+    public List<TestResult> getAllTestResults() {
+        return testResultRepository.findAll();
+    }
 }
