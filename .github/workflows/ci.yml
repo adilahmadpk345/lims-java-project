@@ -72,21 +72,60 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GHCR_TOKEN }}
 
-      - name: Build lims-web Docker image
-        run: |
-          docker build --file lims-web/Dockerfile --tag ghcr.io/${{ github.repository }}/lims-web:${{ github.sha }} lims-web
+      - name: Build and optionally push image with build-push-action
+        uses: docker/build-push-action@v5
+        with:
+          context: ./lims-web
+          file: ./lims-web/Dockerfile
+          platforms: linux/amd64,linux/arm64
+          push: ${{ secrets.GHCR_TOKEN != '' }}
+          tags: ghcr.io/${{ github.repository }}/lims-web:${{ github.sha }}
+          outputs: type=tar,dest=lims-web-${{ github.sha }}.tar
 
-      - name: Save image to tar
+      - name: Load image and run smoke tests
+        # Load the tar produced by build-push-action, start a container, and run quick checks.
         run: |
-          docker save ghcr.io/${{ github.repository }}/lims-web:${{ github.sha }} -o lims-web-${{ github.sha }}.tar || true
+          set -eux
+          TAR=lims-web-${{ github.sha }}.tar
+          if [ -f "$TAR" ]; then
+            echo "Loading image tar $TAR"
+            docker load -i "$TAR"
+          else
+            echo "$TAR not found, attempting to continue (image may already be present)"
+          fi
+
+          # Prefer running the locally-loaded tag. The build step tags the image as ghcr.io/${{ github.repository }}/lims-web:${{ github.sha }}
+          IMAGE=ghcr.io/${{ github.repository }}/lims-web:${{ github.sha }}
+          echo "Running container from $IMAGE"
+          CID=$(docker run -d -p 8080:8080 -e SPRING_PROFILES_ACTIVE=h2 -e SPRING_CLOUD_GCP_SQL_ENABLED=false "$IMAGE" || true)
+          if [ -z "$CID" ]; then
+            echo "Failed to start container from $IMAGE; attempting to find any matching local image"
+            docker images --format "{{.Repository}}:{{.Tag}} {{.ID}}"
+            exit 1
+          fi
+
+          # Wait for the app to come up
+          for i in $(seq 1 20); do
+            if curl -s -u admin:password --fail http://localhost:8080/ >/dev/null 2>&1; then
+              echo "app is up"
+              break
+            fi
+            echo "waiting for app... ($i)"
+            sleep 2
+          done
+
+          # Basic endpoint checks
+          echo "Checking /"
+          curl -s -u admin:password -D - http://localhost:8080/ | sed -n '1,10p'
+
+          echo "Checking /api/samples"
+          curl -s -u admin:password -D - http://localhost:8080/api/samples | sed -n '1,40p'
+
+          # Tear down
+          docker rm -f "$CID" || true
 
       - name: Upload image artifact
         uses: actions/upload-artifact@v4
         with:
           name: lims-web-image-${{ github.sha }}
           path: lims-web-${{ github.sha }}.tar
-
-      - name: Push Docker image to GHCR
-        if: ${{ secrets.GHCR_TOKEN != '' }}
-        run: |
-          docker push ghcr.io/${{ github.repository }}/lims-web:${{ github.sha }}
