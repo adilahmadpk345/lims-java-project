@@ -82,6 +82,11 @@ jobs:
           tags: ghcr.io/${{ github.repository }}/lims-web:${{ github.sha }}
           outputs: type=tar,dest=lims-web-${{ github.sha }}.tar
 
+      - name: Save built tag to file
+        run: |
+          echo "ghcr.io/${{ github.repository }}/lims-web:${{ github.sha }}" > image-tag.txt
+          cat image-tag.txt
+
       - name: Load image and run smoke tests
         # Load the tar produced by build-push-action, start a container, and run quick checks.
         run: |
