@@ -13,7 +13,15 @@ if [ ! -f "$JAR" ]; then
 fi
 
 echo "Starting jar: $JAR"
-nohup java -jar "$JAR" --spring.profiles.active=h2 --spring.cloud.gcp.sql.enabled=false > "$LOG_FILE" 2>&1 &
+# choose java command: prefer JAVA_HOME if set
+if [ -n "${JAVA_HOME:-}" ] && [ -x "${JAVA_HOME}/bin/java" ]; then
+  JAVA_CMD="${JAVA_HOME}/bin/java"
+else
+  JAVA_CMD="java"
+fi
+
+echo "Using java: $($JAVA_CMD -version 2>&1 | sed -n '1,2p')" >>"$LOG_FILE" 2>&1 || true
+nohup "$JAVA_CMD" -jar "$JAR" --spring.profiles.active=h2 --spring.cloud.gcp.sql.enabled=false > "$LOG_FILE" 2>&1 &
 PID=$!
 echo "Started pid=$PID, logging to $LOG_FILE"
 
