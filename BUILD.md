@@ -110,3 +110,42 @@ Notes:
 - The script requires a configured `origin` remote and push permissions.
 - For automatic PR creation, install and authenticate `gh` (GitHub CLI): https://cli.github.com/
 - For scheduled or CI-backed backups, consider using a GitHub Action or other CI runner to push changes from a centralized environment.
+
+Diagnostics (new)
+------------------
+
+To reduce time spent iterating on CI/runtime failures, this repository now includes a small diagnostics framework that makes it easier to collect and inspect runtime logs from CI runs and locally.
+
+1) Local smoke runner script
+
+Path: `scripts/ci/run_jar_smoke.sh`
+
+Usage (local):
+
+```bash
+# Ensure the jar is built first
+mvn -pl lims-web -am -DskipTests package
+./scripts/ci/run_jar_smoke.sh lims-web/target/lims-web-0.0.1-SNAPSHOT.jar smoke.log
+tail -n 200 smoke.log
+```
+
+This starts the jar with H2 and Cloud SQL disabled, waits for readiness, performs `GET /` and `GET /api/samples` with the default `admin:password` credentials, and writes output to `smoke.log`.
+
+2) CI smoke log artifact
+
+The CI workflow runs the same script (on the runner) and uploads `smoke.log` as an artifact named `smoke-log-<sha>` on every run. If a workflow fails, download the `smoke.log` artifact from the Actions run page to inspect startup errors, stack traces, and curl output.
+
+3) Common failures and fixes
+
+- Docker permission or load failures: On GitHub-hosted runners docker load/run may be restricted. The workflow includes a jar-based smoke test that avoids Docker; prefer enabling that if docker steps fail. If you must run docker in CI, switch to self-hosted runners with Docker installed and configured.
+- Missing jar: Ensure the `Package lims-web jar` step runs and produces `lims-web/target/lims-web-0.0.1-SNAPSHOT.jar` before smoke tests. The workflow already packages the jar before the jar smoke test.
+- Cloud SQL / GCP auto-configuration errors: Set `SPRING_CLOUD_GCP_SQL_ENABLED=false` in the environment (CI and local) to avoid cloud SQL auto-config when running tests or smoke checks.
+- Auth failures (401 on /): The repository includes `DataInitializer` that seeds an `admin` user with password `password`. Use `admin:password` for smoke tests. If different, ensure the test credentials match.
+
+4) How to act on smoke.log
+
+- If you see `A database name must be provided.` in the log, confirm `SPRING_CLOUD_GCP_SQL_ENABLED=false` is set.
+- If you see `Your default credentials were not found` from Google libraries, those are warnings only unless your app uses GCP services in that run: either supply ADC or disable GCP integrations in the environment.
+- For stack traces: search for the root cause exception class and message. If it's a missing bean (e.g., entityManagerFactory), inspect test annotations; many tests use slices that don't require full JPA wiring. Convert failing WebMvcTest slices to Mockito-based MockMvc tests when necessary.
+
+If you'd like, I can add a tiny `scripts/local-debug.sh` that packages the jar, runs the smoke script, and opens the log in your editor automatically.
