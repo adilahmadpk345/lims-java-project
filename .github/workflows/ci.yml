@@ -14,6 +14,13 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+          cache: 'maven'
+
       - name: Diagnostic: show java & maven versions
         run: |
           java -version || true
@@ -25,13 +32,6 @@ jobs:
         run: |
           echo "Workspace listing:"; ls -la || true
           echo "lims-web/target listing:"; ls -la lims-web/target || true
-
-      - name: Set up JDK 17
-        uses: actions/setup-java@v4
-        with:
-          distribution: 'temurin'
-          java-version: '17'
-          cache: 'maven'
 
       - name: Cache Maven repository
         uses: actions/cache@v4
@@ -46,6 +46,10 @@ jobs:
 
       - name: Package lims-web jar (for smoke test)
         run: mvn -DskipTests -pl lims-web -am package
+
+      - name: Diagnostic: list lims-web target after package
+        run: |
+          echo "lims-web/target listing after package:"; ls -la lims-web/target || true
 
       - name: Run jar smoke tests
         run: |
@@ -64,7 +68,7 @@ jobs:
         if: always()
         run: |
           echo "--- BEGIN smoke.log ---"
-          if [ -f smoke.log ]; then sed -n '1,300p' smoke.log || true; else echo "smoke.log not found"; fi
+          if [ -f smoke.log ]; then cat smoke.log || true; else echo "smoke.log not found"; fi
           echo "--- END smoke.log ---"
 
   docker:
@@ -99,6 +103,10 @@ jobs:
       - name: Package lims-web jar
         run: mvn -DskipTests -pl lims-web -am package
 
+      - name: Diagnostic: list lims-web target after package
+        run: |
+          echo "lims-web/target listing after package:"; ls -la lims-web/target || true
+
       - name: Run jar smoke tests (fast, avoids docker)
         run: |
           set -eux
@@ -118,7 +126,7 @@ jobs:
         run: |
           echo "--- BEGIN smoke.log ---"
           if [ -f smoke.log ]; then
-            sed -n '1,300p' smoke.log || true
+            cat smoke.log || true
           else
             echo "smoke.log not found"
           fi
@@ -152,6 +160,7 @@ jobs:
         run: |
           set -eux
           TAR=lims-web-${{ github.sha }}.tar
+          echo "Listing any lims-web tar files:"; ls -la lims-web-*.tar || true
           if [ -f "$TAR" ]; then
             echo "Loading image tar $TAR"
             docker load -i "$TAR"
