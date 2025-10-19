@@ -94,19 +94,39 @@ jobs:
             echo "$TAR not found, attempting to continue (image may already be present)"
           fi
 
+          echo "--- workspace listing ---"
+          ls -la
+          echo "--- lims-web dir listing ---"
+          ls -la lims-web || true
+          echo "--- repo size ---"
+          du -sh . || true
+          echo "--- docker images ---"
+          docker images --format "{{.Repository}}:{{.Tag}} {{.ID}} {{.Size}}"
+
           # Prefer running the locally-loaded tag. The build step tags the image as ghcr.io/${{ github.repository }}/lims-web:${{ github.sha }}
           IMAGE=ghcr.io/${{ github.repository }}/lims-web:${{ github.sha }}
           echo "Running container from $IMAGE"
+
           CID=$(docker run -d -p 8080:8080 -e SPRING_PROFILES_ACTIVE=h2 -e SPRING_CLOUD_GCP_SQL_ENABLED=false "$IMAGE" || true)
           if [ -z "$CID" ]; then
             echo "Failed to start container from $IMAGE; attempting to find any matching local image"
             docker images --format "{{.Repository}}:{{.Tag}} {{.ID}}"
+            # Try to pick any local lims-web image
+            ALT=$(docker images --format "{{.Repository}}:{{.Tag}}" | grep lims-web | head -n1 || true)
+            if [ -n "$ALT" ]; then
+              echo "Found alternative image $ALT, attempting to run it"
+              CID=$(docker run -d -p 8080:8080 -e SPRING_PROFILES_ACTIVE=h2 -e SPRING_CLOUD_GCP_SQL_ENABLED=false "$ALT" || true)
+            fi
+          fi
+
+          if [ -z "$CID" ]; then
+            echo "No container started; aborting smoke tests"
             exit 1
           fi
 
-          # Wait for the app to come up
-          for i in $(seq 1 20); do
-            if curl -s -u admin:password --fail http://localhost:8080/ >/dev/null 2>&1; then
+          # Wait for the app to come up (longer/retry)
+          for i in $(seq 1 60); do
+            if curl -s -u admin:password --fail --max-time 3 http://localhost:8080/ >/dev/null 2>&1; then
               echo "app is up"
               break
             fi
