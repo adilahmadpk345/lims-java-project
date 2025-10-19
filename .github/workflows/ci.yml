@@ -67,9 +67,12 @@ jobs:
       - name: Run jar smoke tests (fast, avoids docker)
         run: |
           set -eux
+          # ensure smoke.log exists so upload step can always find it
+          touch smoke.log
           ./scripts/ci/run_jar_smoke.sh lims-web/target/lims-web-0.0.1-SNAPSHOT.jar smoke.log || true
 
       - name: Upload smoke test log
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: smoke-log-${{ github.sha }}
@@ -161,6 +164,7 @@ jobs:
           docker rm -f "$CID" || true
 
       - name: Upload image artifact
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: lims-web-image-${{ github.sha }}
