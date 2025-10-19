@@ -32,6 +32,29 @@ jobs:
       - name: Build and run tests (lims-web)
         run: mvn -Dspring.cloud.gcp.sql.enabled=false -pl lims-web -am test
 
+      - name: Package lims-web jar (for smoke test)
+        run: mvn -DskipTests -pl lims-web -am package
+
+      - name: Run jar smoke tests
+        run: |
+          set -eux
+          touch smoke.log
+          ./scripts/ci/run_jar_smoke.sh lims-web/target/lims-web-0.0.1-SNAPSHOT.jar smoke.log || true
+
+      - name: Upload smoke.log artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: smoke-log-${{ github.sha }}
+          path: smoke.log
+
+      - name: Print smoke.log to workflow log
+        if: always()
+        run: |
+          echo "--- BEGIN smoke.log ---"
+          if [ -f smoke.log ]; then sed -n '1,300p' smoke.log || true; else echo "smoke.log not found"; fi
+          echo "--- END smoke.log ---"
+
   docker:
     needs: build
     runs-on: ubuntu-latest
