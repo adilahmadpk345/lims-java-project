@@ -78,6 +78,17 @@ jobs:
           name: smoke-log-${{ github.sha }}
           path: smoke.log
 
+      - name: Print smoke.log to workflow log
+        if: always()
+        run: |
+          echo "--- BEGIN smoke.log ---"
+          if [ -f smoke.log ]; then
+            sed -n '1,300p' smoke.log || true
+          else
+            echo "smoke.log not found"
+          fi
+          echo "--- END smoke.log ---"
+
       - name: Log in to GitHub Container Registry
         if: ${{ secrets.GHCR_TOKEN != '' }}
         uses: docker/login-action@v2
