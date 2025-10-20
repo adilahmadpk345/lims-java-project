@@ -21,6 +21,18 @@ jobs:
           java-version: '17'
           cache: 'maven'
 
+      - name: Diagnostic: show java & maven versions
+        run: |
+          java -version || true
+          mvn -v || true
+          df -h . || true
+          free -m || true
+
+      - name: Diagnostic: list workspace and lims-web target
+        run: |
+          echo "Workspace listing:"; ls -la || true
+          echo "lims-web/target listing:"; ls -la lims-web/target || true
+
       - name: Cache Maven repository
         uses: actions/cache@v4
         with:
@@ -31,6 +43,98 @@ jobs:
 
       - name: Build and run tests (lims-web)
         run: mvn -Dspring.cloud.gcp.sql.enabled=false -pl lims-web -am test
+
+      - name: Package lims-web jar (for smoke test)
+        run: mvn -DskipTests -pl lims-web -am package
+
+      - name: Diagnostic: list lims-web target after package
+        run: |
+          echo "lims-web/target listing after package:"; ls -la lims-web/target || true
+
+      - name: Run jar smoke tests
+        run: |
+          set -eux
+          touch smoke.log
+          ./scripts/ci/run_jar_smoke.sh lims-web/target/lims-web-0.0.1-SNAPSHOT.jar smoke.log || true
+
+      - name: Upload smoke.log artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: smoke-log-${{ github.ref_name }}-${{ github.sha }}
+          path: smoke.log
+
+      - name: Print smoke.log to workflow log
+        if: always()
+        run: |
+          echo "--- BEGIN smoke.log ---"
+          if [ -f smoke.log ]; then cat smoke.log || true; else echo "smoke.log not found"; fi
+          echo "--- END smoke.log ---"
+
+      - name: Post smoke.log to PR via REST (bash)
+        if: always()
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          if [ -z "${GITHUB_TOKEN:-}" ]; then echo "GITHUB_TOKEN not set, skipping PR post"; exit 0; fi
+          OWNER_REPO=${GITHUB_REPOSITORY}
+          OWNER=${OWNER_REPO%%/*}
+          REPO=${OWNER_REPO##*/}
+          BRANCH=${GITHUB_HEAD_REF:-${GITHUB_REF#refs/heads/}}
+          echo "Looking for PR for $OWNER/$REPO $BRANCH"
+          PR_JSON=$(curl -s -H "Authorization: token $GITHUB_TOKEN" "https://api.github.com/repos/$OWNER/$REPO/pulls?state=open&head=$OWNER:$BRANCH") || true
+          PR_NUM=$(echo "$PR_JSON" | jq -r '.[0].number // empty') || true
+          if [ -z "$PR_NUM" ]; then echo "No PR found for branch $BRANCH; skipping"; exit 0; fi
+          echo "Found PR #$PR_NUM; posting smoke.log (truncated)"
+          if [ -f smoke.log ]; then
+            BODY=$(printf "Smoke log (truncated to 6000 chars):\n\n```
+$(head -c 6000 smoke.log)
+```")
+          else
+            BODY="smoke.log not found"
+          fi
+          curl -s -H "Authorization: token $GITHUB_TOKEN" -H "Content-Type: application/json" -X POST -d "$(jq -Rn --arg b "$BODY" '{body:$b}')" "https://api.github.com/repos/$OWNER/$REPO/issues/$PR_NUM/comments" || true
+
+      - name: Write smoke.log to job summary and artifacts
+        if: always()
+        run: |
+          mkdir -p artifacts || true
+          if [ -f smoke.log ]; then
+            echo '### smoke.log' >> "$GITHUB_STEP_SUMMARY" || true
+            echo '```' >> "$GITHUB_STEP_SUMMARY" || true
+            head -c 6000 smoke.log >> "$GITHUB_STEP_SUMMARY" || true
+            echo '```' >> "$GITHUB_STEP_SUMMARY" || true
+            cp smoke.log artifacts/smoke-log-${{ github.sha }}.log || true
+          else
+            echo 'smoke.log not found' >> "$GITHUB_STEP_SUMMARY" || true
+          fi
+
+      - name: Post smoke.log to PR comment
+        if: always()
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            try {
+              const fs = require('fs');
+              const path = 'smoke.log';
+              if (!fs.existsSync(path)) { console.log('smoke.log not found'); return; }
+              const raw = fs.readFileSync(path, {encoding:'utf8'});
+              const log = raw.substring(0, 6000);
+              const [owner, repo] = (process.env.GITHUB_REPOSITORY || '').split('/');
+              const ref = process.env.GITHUB_REF || '';
+              let branch = process.env.GITHUB_HEAD_REF || '';
+              if (!branch) branch = ref.replace('refs/heads/','');
+              console.log(`Looking for PR for ${owner}/${branch}`);
+              const pulls = await github.rest.pulls.list({ owner, repo, head: `${owner}:${branch}` });
+              if (!pulls || !pulls.data || pulls.data.length === 0) { console.log('No PR found for this branch'); return; }
+              const pr = pulls.data[0];
+              const body = 'Smoke log (truncated to 6000 chars):\n\n' + '```
+' + log + '\n```';
+              await github.rest.issues.createComment({ owner, repo, issue_number: pr.number, body });
+              console.log('Posted smoke.log to PR #' + pr.number);
+            } catch (e) { console.log('Failed to post smoke.log to PR', e && e.message); }
 
   docker:
     needs: build
@@ -64,6 +168,61 @@ jobs:
       - name: Package lims-web jar
         run: mvn -DskipTests -pl lims-web -am package
 
+      - name: Diagnostic: list lims-web target after package
+        run: |
+          echo "lims-web/target listing after package:"; ls -la lims-web/target || true
+
+      - name: Run jar smoke tests (fast, avoids docker)
+        run: |
+          set -eux
+          # ensure smoke.log exists so upload step can always find it
+          touch smoke.log
+          ./scripts/ci/run_jar_smoke.sh lims-web/target/lims-web-0.0.1-SNAPSHOT.jar smoke.log || true
+
+      - name: Upload smoke test log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: smoke-log-${{ github.ref_name }}-${{ github.sha }}
+          path: smoke.log
+
+      - name: Print smoke.log to workflow log
+        if: always()
+        run: |
+          echo "--- BEGIN smoke.log ---"
+          if [ -f smoke.log ]; then
+            cat smoke.log || true
+          else
+            echo "smoke.log not found"
+          fi
+          echo "--- END smoke.log ---"
+
+      - name: Post smoke.log to PR comment
+        if: always()
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            try {
+              const fs = require('fs');
+              const path = 'smoke.log';
+              if (!fs.existsSync(path)) { console.log('smoke.log not found'); return; }
+              const raw = fs.readFileSync(path, {encoding:'utf8'});
+              const log = raw.substring(0, 6000);
+              const [owner, repo] = (process.env.GITHUB_REPOSITORY || '').split('/');
+              const ref = process.env.GITHUB_REF || '';
+              let branch = process.env.GITHUB_HEAD_REF || '';
+              if (!branch) branch = ref.replace('refs/heads/','');
+              console.log(`Looking for PR for ${owner}/${branch}`);
+              const pulls = await github.rest.pulls.list({ owner, repo, head: `${owner}:${branch}` });
+              if (!pulls || !pulls.data || pulls.data.length === 0) { console.log('No PR found for this branch'); return; }
+              const pr = pulls.data[0];
+              const body = 'Smoke log (truncated to 6000 chars):\n\n' + '```
+' + log + '\n```';
+              await github.rest.issues.createComment({ owner, repo, issue_number: pr.number, body });
+              console.log('Posted smoke.log to PR #' + pr.number);
+            } catch (e) { console.log('Failed to post smoke.log to PR', e && e.message); }
+
       - name: Log in to GitHub Container Registry
         if: ${{ secrets.GHCR_TOKEN != '' }}
         uses: docker/login-action@v2
@@ -72,21 +231,87 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GHCR_TOKEN }}
 
-      - name: Build lims-web Docker image
-        run: |
-          docker build --file lims-web/Dockerfile --tag ghcr.io/${{ github.repository }}/lims-web:${{ github.sha }} lims-web
+      - name: Build and optionally push image with build-push-action
+        uses: docker/build-push-action@v5
+        with:
+          context: ./lims-web
+          file: ./lims-web/Dockerfile
+          platforms: linux/amd64,linux/arm64
+          push: ${{ secrets.GHCR_TOKEN != '' }}
+          tags: ghcr.io/${{ github.repository }}/lims-web:${{ github.sha }}
+          outputs: type=tar,dest=lims-web-${{ github.sha }}.tar
 
-      - name: Save image to tar
+      - name: Save built tag to file
         run: |
-          docker save ghcr.io/${{ github.repository }}/lims-web:${{ github.sha }} -o lims-web-${{ github.sha }}.tar || true
+          echo "ghcr.io/${{ github.repository }}/lims-web:${{ github.sha }}" > image-tag.txt
+          cat image-tag.txt
+
+      - name: Load image and run smoke tests
+        # Load the tar produced by build-push-action, start a container, and run quick checks.
+        run: |
+          set -eux
+          TAR=lims-web-${{ github.sha }}.tar
+          echo "Listing any lims-web tar files:"; ls -la lims-web-*.tar || true
+          if [ -f "$TAR" ]; then
+            echo "Loading image tar $TAR"
+            docker load -i "$TAR"
+          else
+            echo "$TAR not found, attempting to continue (image may already be present)"
+          fi
+
+          echo "--- workspace listing ---"
+          ls -la
+          echo "--- lims-web dir listing ---"
+          ls -la lims-web || true
+          echo "--- repo size ---"
+          du -sh . || true
+          echo "--- docker images ---"
+          docker images --format "{{.Repository}}:{{.Tag}} {{.ID}} {{.Size}}"
+
+          # Prefer running the locally-loaded tag. The build step tags the image as ghcr.io/${{ github.repository }}/lims-web:${{ github.sha }}
+          IMAGE=ghcr.io/${{ github.repository }}/lims-web:${{ github.sha }}
+          echo "Running container from $IMAGE"
+
+          CID=$(docker run -d -p 8080:8080 -e SPRING_PROFILES_ACTIVE=h2 -e SPRING_CLOUD_GCP_SQL_ENABLED=false "$IMAGE" || true)
+          if [ -z "$CID" ]; then
+            echo "Failed to start container from $IMAGE; attempting to find any matching local image"
+            docker images --format "{{.Repository}}:{{.Tag}} {{.ID}}"
+            # Try to pick any local lims-web image
+            ALT=$(docker images --format "{{.Repository}}:{{.Tag}}" | grep lims-web | head -n1 || true)
+            if [ -n "$ALT" ]; then
+              echo "Found alternative image $ALT, attempting to run it"
+              CID=$(docker run -d -p 8080:8080 -e SPRING_PROFILES_ACTIVE=h2 -e SPRING_CLOUD_GCP_SQL_ENABLED=false "$ALT" || true)
+            fi
+          fi
+
+          if [ -z "$CID" ]; then
+            echo "No container started; aborting smoke tests"
+            exit 1
+          fi
+
+          # Wait for the app to come up (longer/retry)
+          for i in $(seq 1 60); do
+            if curl -s -u admin:password --fail --max-time 3 http://localhost:8080/ >/dev/null 2>&1; then
+              echo "app is up"
+              break
+            fi
+            echo "waiting for app... ($i)"
+            sleep 2
+          done
+
+          # Basic endpoint checks
+          echo "Checking /"
+          curl -s -u admin:password -D - http://localhost:8080/ | sed -n '1,10p'
+
+          echo "Checking /api/samples"
+          curl -s -u admin:password -D - http://localhost:8080/api/samples | sed -n '1,40p'
+
+          # Tear down
+          docker rm -f "$CID" || true
 
       - name: Upload image artifact
+        if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: lims-web-image-${{ github.sha }}
+          name: lims-web-image-${{ github.ref_name }}-${{ github.sha }}
           path: lims-web-${{ github.sha }}.tar
-
-      - name: Push Docker image to GHCR
-        if: ${{ secrets.GHCR_TOKEN != '' }}
-        run: |
-          docker push ghcr.io/${{ github.repository }}/lims-web:${{ github.sha }}
