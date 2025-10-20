@@ -96,6 +96,20 @@ $(head -c 6000 smoke.log)
           fi
           curl -s -H "Authorization: token $GITHUB_TOKEN" -H "Content-Type: application/json" -X POST -d "$(jq -Rn --arg b "$BODY" '{body:$b}')" "https://api.github.com/repos/$OWNER/$REPO/issues/$PR_NUM/comments" || true
 
+      - name: Write smoke.log to job summary and artifacts
+        if: always()
+        run: |
+          mkdir -p artifacts || true
+          if [ -f smoke.log ]; then
+            echo '### smoke.log' >> "$GITHUB_STEP_SUMMARY" || true
+            echo '```' >> "$GITHUB_STEP_SUMMARY" || true
+            head -c 6000 smoke.log >> "$GITHUB_STEP_SUMMARY" || true
+            echo '```' >> "$GITHUB_STEP_SUMMARY" || true
+            cp smoke.log artifacts/smoke-log-${{ github.sha }}.log || true
+          else
+            echo 'smoke.log not found' >> "$GITHUB_STEP_SUMMARY" || true
+          fi
+
       - name: Post smoke.log to PR comment
         if: always()
         uses: actions/github-script@v7
