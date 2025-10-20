@@ -72,7 +72,7 @@ jobs:
           echo "--- END smoke.log ---"
 
       - name: Post smoke.log to PR comment
-        if: ${{ always() && (github.event_name == 'pull_request' || github.event.pull_request != null || github.head_ref != '') }}
+        if: always()
         uses: actions/github-script@v7
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
@@ -154,7 +154,7 @@ jobs:
           echo "--- END smoke.log ---"
 
       - name: Post smoke.log to PR comment
-        if: ${{ always() && (github.event_name == 'pull_request' || github.event.pull_request != null || github.head_ref != '') }}
+        if: always()
         uses: actions/github-script@v7
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
