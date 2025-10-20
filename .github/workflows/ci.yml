@@ -71,6 +71,31 @@ jobs:
           if [ -f smoke.log ]; then cat smoke.log || true; else echo "smoke.log not found"; fi
           echo "--- END smoke.log ---"
 
+      - name: Post smoke.log to PR via REST (bash)
+        if: always()
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          if [ -z "${GITHUB_TOKEN:-}" ]; then echo "GITHUB_TOKEN not set, skipping PR post"; exit 0; fi
+          OWNER_REPO=${GITHUB_REPOSITORY}
+          OWNER=${OWNER_REPO%%/*}
+          REPO=${OWNER_REPO##*/}
+          BRANCH=${GITHUB_HEAD_REF:-${GITHUB_REF#refs/heads/}}
+          echo "Looking for PR for $OWNER/$REPO $BRANCH"
+          PR_JSON=$(curl -s -H "Authorization: token $GITHUB_TOKEN" "https://api.github.com/repos/$OWNER/$REPO/pulls?state=open&head=$OWNER:$BRANCH") || true
+          PR_NUM=$(echo "$PR_JSON" | jq -r '.[0].number // empty') || true
+          if [ -z "$PR_NUM" ]; then echo "No PR found for branch $BRANCH; skipping"; exit 0; fi
+          echo "Found PR #$PR_NUM; posting smoke.log (truncated)"
+          if [ -f smoke.log ]; then
+            BODY=$(printf "Smoke log (truncated to 6000 chars):\n\n```
+$(head -c 6000 smoke.log)
+```")
+          else
+            BODY="smoke.log not found"
+          fi
+          curl -s -H "Authorization: token $GITHUB_TOKEN" -H "Content-Type: application/json" -X POST -d "$(jq -Rn --arg b "$BODY" '{body:$b}')" "https://api.github.com/repos/$OWNER/$REPO/issues/$PR_NUM/comments" || true
+
       - name: Post smoke.log to PR comment
         if: always()
         uses: actions/github-script@v7
