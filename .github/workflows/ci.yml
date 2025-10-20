@@ -61,7 +61,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: smoke-log-${{ github.sha }}
+          name: smoke-log-${{ github.ref_name }}-${{ github.sha }}
           path: smoke.log
 
       - name: Print smoke.log to workflow log
@@ -183,7 +183,7 @@ $(head -c 6000 smoke.log)
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: smoke-log-${{ github.sha }}
+          name: smoke-log-${{ github.ref_name }}-${{ github.sha }}
           path: smoke.log
 
       - name: Print smoke.log to workflow log
@@ -313,5 +313,5 @@ $(head -c 6000 smoke.log)
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: lims-web-image-${{ github.sha }}
+          name: lims-web-image-${{ github.ref_name }}-${{ github.sha }}
           path: lims-web-${{ github.sha }}.tar
