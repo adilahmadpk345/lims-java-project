@@ -77,20 +77,25 @@ jobs:
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
-            const fs = require('fs');
-            const path = 'smoke.log';
-            if (!fs.existsSync(path)) { core.info('smoke.log not found'); return; }
-            const log = fs.readFileSync(path, {encoding:'utf8'});
-            const ownerRepo = process.env.GITHUB_REPOSITORY;
-            const [owner, repo] = ownerRepo.split('/');
-            const head = process.env.GITHUB_HEAD_REF || (process.env.GITHUB_REF || '').replace('refs/heads/','');
-            core.info(`Searching PR for head ${head}`);
-            const pulls = await github.rest.pulls.list({ owner, repo, head: `${owner}:${head}` });
-            if (!pulls.data || pulls.data.length === 0) { core.info('No PR found for this branch'); return; }
-            const pr = pulls.data[0];
-            const body = 'Smoke log (truncated to 6000 chars):\n\n' + '```
-'+ log.substring(0, 6000) + '\n```';
-            await github.rest.issues.createComment({ owner, repo, issue_number: pr.number, body });
+            try {
+              const fs = require('fs');
+              const path = 'smoke.log';
+              if (!fs.existsSync(path)) { console.log('smoke.log not found'); return; }
+              const raw = fs.readFileSync(path, {encoding:'utf8'});
+              const log = raw.substring(0, 6000);
+              const [owner, repo] = (process.env.GITHUB_REPOSITORY || '').split('/');
+              const ref = process.env.GITHUB_REF || '';
+              let branch = process.env.GITHUB_HEAD_REF || '';
+              if (!branch) branch = ref.replace('refs/heads/','');
+              console.log(`Looking for PR for ${owner}/${branch}`);
+              const pulls = await github.rest.pulls.list({ owner, repo, head: `${owner}:${branch}` });
+              if (!pulls || !pulls.data || pulls.data.length === 0) { console.log('No PR found for this branch'); return; }
+              const pr = pulls.data[0];
+              const body = 'Smoke log (truncated to 6000 chars):\n\n' + '```
+' + log + '\n```';
+              await github.rest.issues.createComment({ owner, repo, issue_number: pr.number, body });
+              console.log('Posted smoke.log to PR #' + pr.number);
+            } catch (e) { console.log('Failed to post smoke.log to PR', e && e.message); }
 
   docker:
     needs: build
@@ -159,20 +164,25 @@ jobs:
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
-            const fs = require('fs');
-            const path = 'smoke.log';
-            if (!fs.existsSync(path)) { core.info('smoke.log not found'); return; }
-            const log = fs.readFileSync(path, {encoding:'utf8'});
-            const ownerRepo = process.env.GITHUB_REPOSITORY;
-            const [owner, repo] = ownerRepo.split('/');
-            const head = process.env.GITHUB_HEAD_REF || (process.env.GITHUB_REF || '').replace('refs/heads/','');
-            core.info(`Searching PR for head ${head}`);
-            const pulls = await github.rest.pulls.list({ owner, repo, head: `${owner}:${head}` });
-            if (!pulls.data || pulls.data.length === 0) { core.info('No PR found for this branch'); return; }
-            const pr = pulls.data[0];
-            const body = 'Smoke log (truncated to 6000 chars):\n\n' + '```
-'+ log.substring(0, 6000) + '\n```';
-            await github.rest.issues.createComment({ owner, repo, issue_number: pr.number, body });
+            try {
+              const fs = require('fs');
+              const path = 'smoke.log';
+              if (!fs.existsSync(path)) { console.log('smoke.log not found'); return; }
+              const raw = fs.readFileSync(path, {encoding:'utf8'});
+              const log = raw.substring(0, 6000);
+              const [owner, repo] = (process.env.GITHUB_REPOSITORY || '').split('/');
+              const ref = process.env.GITHUB_REF || '';
+              let branch = process.env.GITHUB_HEAD_REF || '';
+              if (!branch) branch = ref.replace('refs/heads/','');
+              console.log(`Looking for PR for ${owner}/${branch}`);
+              const pulls = await github.rest.pulls.list({ owner, repo, head: `${owner}:${branch}` });
+              if (!pulls || !pulls.data || pulls.data.length === 0) { console.log('No PR found for this branch'); return; }
+              const pr = pulls.data[0];
+              const body = 'Smoke log (truncated to 6000 chars):\n\n' + '```
+' + log + '\n```';
+              await github.rest.issues.createComment({ owner, repo, issue_number: pr.number, body });
+              console.log('Posted smoke.log to PR #' + pr.number);
+            } catch (e) { console.log('Failed to post smoke.log to PR', e && e.message); }
 
       - name: Log in to GitHub Container Registry
         if: ${{ secrets.GHCR_TOKEN != '' }}
